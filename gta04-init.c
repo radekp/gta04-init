@@ -258,7 +258,7 @@ err_write:
     goto err_dst;
 }
 
-static void run_rootfs_init(int check_kernel, const char *bootdev,
+static void run_rootfs_init(int update_kernel, const char *bootdev,
                             const char *bootdir)
 {
     char *argv[2];
@@ -282,8 +282,11 @@ static void run_rootfs_init(int check_kernel, const char *bootdev,
 
     // Check if we have the same kernel as on /real-root/boot
     // If not copy it to uImage and reboot
-    if (check_kernel && update_file(uimage_path, "/fat/uImage") > 0) {
+    if (update_kernel && update_file(uimage_path, "/fat/uImage") > 0) {
         printf("updated kernel from real-root and rebooting\n");
+        if (rename("/fat/gta04-init/lastbootdev", "/fat/gta04-init/bootdev")) {
+            perror("rename to boodev failed");
+        }
         if (umount("/fat")) {
             perror("umount /fat");
         }
@@ -294,10 +297,9 @@ static void run_rootfs_init(int check_kernel, const char *bootdev,
         sleep(60);
         return;
     }
-    // Remove boodev. Distro should supply it on reboot. If not we fallback to
-    // bootmenu.
-    if (unlink("/fat/gta04-init/bootdev")) {
-        perror("boodev unlink failed");
+    // Unmount fat - we dont need it anymore
+    if (umount("/fat")) {
+        perror("umount /fat");
     }
     // Draw distribution logo if supplied
     bmp_draw(logo_path, 176, 256, 1);
@@ -364,6 +366,13 @@ int main()
             printf("bootdir=%s\n", bootdir);
         }
         close(fd);
+
+        // Move bootdev to lastbootdev. Distro can rename it back on reboot.
+        // If not we fallback to bootmenu.
+        unlink("/fat/gta04-init/lastbootdev");
+        if (rename("/fat/gta04-init/bootdev", "/fat/gta04-init/lastbootdev")) {
+            perror("rename to lastboodev failed");
+        }
         break;
     }
 
