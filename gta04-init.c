@@ -216,13 +216,16 @@ int main()
     // Mount the FAT boot partition for 1.sh and 2.sh
     if (choice == choice_1 || choice == choice_2) {
         if (mount_fs("vfat", "/dev/mmcblk0p1", "/fat") >= 0) {
-            printf("running /fat/bin/busybox sh %s\n", choice);
-            if (execl("/fat/bin/busybox", "sh", choice, (char *)(NULL)) == -1) {
+            printf("running /fat/gta04-init/busybox sh %s\n", choice);
+            if (execl("/fat/gta04-init/busybox", "sh", choice, (char *)(NULL))
+                == -1) {
                 perror("busybox exec failed");
             }
         }
     } else if (choice == choice_sd) {
-        if (mount_fs("ext3", "/dev/mmcblk0p2", "/real-root") >= 0) {
+        if ((mount_fs("ext4", "/dev/mmcblk0p2", "/real-root") >= 0) ||
+            (mount_fs("ext3", "/dev/mmcblk0p2", "/real-root") >= 0) ||
+            (mount_fs("btrfs", "/dev/mmcblk0p2", "/real-root") >= 0)) {
             run_rootfs_init();
         }
     } else {
