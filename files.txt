@@ -1,0 +1,15 @@
+dir /dev 755 0 0
+dir /dev/input 755 0 0
+nod /dev/console 644 0 0 c 5 1
+nod /dev/loop0 644 0 0 b 7 0
+nod /dev/tty0 644 0 0 c 4 0
+nod /dev/input/event0 644 0 0 c 13 64
+nod /dev/mmcblk0p1 644 0 0 b 179 1
+dir /bin 755 1000 1000
+dir /fat 755 0 0
+file /init qtmoko-initramfs/init 755 0 0
+file /bin/busybox qtmoko-initramfs/bin/busybox 755 0 0
+slink /bin/sh /bin/busybox 777 0 0
+dir /proc 755 0 0
+dir /sys 755 0 0
+dir /mnt 755 0 0

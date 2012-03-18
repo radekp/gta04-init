@@ -1,0 +1,52 @@
+Using this project you can generate initramfs with simple rootfs selector. This
+initramfs can be compiled to linux kernel for your GTA04 (http://gta04.org)
+phone.
+
+Why not use u-boot menu?
+========================
+
+1/ UBIFS currently does not boot without initramfs
+2/ In u-boot menu phone is not charging
+3/ Easy customization - mounting and booting rootfs is simple shell script
+4/ You can do nice tricks - like unpack distro tarball and run it from memory
+5/ My GTA04 does not have AUX button needed to bring u-boot menu
+
+What are the downsides?
+=======================
+
+1/ all rootfs have to use the same kernel
+
+How to build this?
+==================
+
+You need to build the menu selector. The resulting binary is called init.
+Simple "make" should do it. Then you need to tell kernel where the initramfs
+sources are:
+ 
+CONFIG_INITRAMFS_SOURCE="gta04-init/files.txt"
+
+Now build the uImage and boot it - you should see the rootfs selection menu.
+
+How to use it?
+==============
+
+You can choose following rootfs in the menu:
+
+SD   NAND
+1    2
+
+NAND/SD items are special, they are compiled in initramfs. They mount
+UBIFS/EXT4 and executes /sbin/init on it.
+
+You can customize 1 and 2 choices. The selector mounts first partition on SD
+card (which is FAT partition) to /fat and executes gta04-init/1.sh or
+gta04-init/2.sh scripts.
+
+The script can use busybox commands to populate the rootfs and execute init.
+E.g.:
+
+    tar xzvpf /fat/qtmoko-debian-gta04-v41.tar.gz
+    exec /sbin/init
+
+But you can do anything you want there. E.g. launch "sh" and use shell over
+serial cable.
