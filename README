@@ -45,8 +45,22 @@ gta04-init/2.sh scripts.
 The script can use busybox commands to populate the rootfs and execute init.
 E.g.:
 
+    cd /
     tar xzvpf /fat/qtmoko-debian-gta04-v41.tar.gz
     exec /sbin/init
 
 But you can do anything you want there. E.g. launch "sh" and use shell over
 serial cable.
+
+Troubleshooting
+===============
+
+* Init is not launching but printing usage message like this:
+
+    Usage: init {-e VAR[=VAL] | [-t SECONDS] {0|1|2|3|4|5|6|S|s|Q|q|A|a|B|b|C|c|U|u}}
+
+  You probably forgot "exec" command when you launched init and init is because
+  of that not process no. 1. In this case init is acting as telinit. You can
+  find some info here:
+
+    http://serverfault.com/questions/95037/custom-initrd-init-script-how-to-create-dev-initctl
