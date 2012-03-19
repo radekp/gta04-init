@@ -49,7 +49,7 @@ void write_file(const char *path, const char *value)
 #define BMP_LINE_LEN (BMP_WIDTH * BMP_PIX_BYTES)
 #define BMP_SIZE (BMP_WIDTH * BMP_HEIGHT * BMP_PIX_BYTES)
 
-int fb_draw(const char *path, int left, int top)
+int fb_draw(const char *path, int left, int top, int fbclear)
 {
     int filefd = -1;
     int fbfd = -1;
@@ -98,6 +98,11 @@ int fb_draw(const char *path, int left, int top)
         perror("fb mmap failed");
         goto cleanup;
     }
+
+    if (fbclear) {
+        memset(fbmap, 0, fblen);
+    }
+
     for (y = 0; y < BMP_HEIGHT; y++) {
         memmove(fbmap + left * BMP_PIX_BYTES +
                 (top + y) * fixed_info.line_length,
@@ -130,10 +135,10 @@ int main()
     const char *choice = NULL;
 
     printf("gta04-init\n");
-    fb_draw("/pic/sd.bmp", 56, 96);
-    fb_draw("/pic/nand.bmp", 56 + 240, 96);
-    fb_draw("/pic/1.bmp", 56, 320 + 96);
-    fb_draw("/pic/2.bmp", 56 + 240, 320 + 96);
+    fb_draw("/pic/sd.bmp", 56, 96, 1);
+    fb_draw("/pic/nand.bmp", 56 + 240, 96, 0);
+    fb_draw("/pic/1.bmp", 56, 320 + 96, 0);
+    fb_draw("/pic/2.bmp", 56 + 240, 320 + 96, 0);
 
     // Mount the FAT boot partition
     for (i = 0;; i++) {
@@ -176,13 +181,17 @@ int main()
         printf("x=%d, y=%d\n", x, y);
         if (y > 2000) {
             if (x > 2000) {
+                fb_draw("/pic/nand.bmp", 176, 256, 1);
                 choice = "/fat/gta04-init/nand.sh";
             } else {
+                fb_draw("/pic/sd.bmp", 176, 256, 1);
                 choice = "/fat/gta04-init/sd.sh";
             }
         } else if (x < 2000) {
+            fb_draw("/pic/1.bmp", 176, 256, 1);
             choice = "/fat/gta04-init/1.sh";
         } else {
+            fb_draw("/pic/2.bmp", 176, 256, 1);
             choice = "/fat/gta04-init/2.sh";
         }
         break;
