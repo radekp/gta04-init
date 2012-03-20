@@ -27,6 +27,27 @@ CONFIG_INITRAMFS_SOURCE="gta04-init/files.txt"
 
 Now build the uImage and boot it - you should see the rootfs selection menu.
 
+How to build ubiattach?
+=======================
+
+Since we want to run from ubifs we need ubiattach utility. You have to build it
+from this git:
+
+    http://git.infradead.org/?p=mtd-utils.git;a=summary
+
+Do make. After it's finished, rebuild statically linked ubiattach:
+
+    gcc -static -O2 -g -Wall -Wextra -Wwrite-strings -Wno-sign-compare -ffunction-sections -fdata-sections -Wl,--gc-sections -g -o ubiattach ubi-utils/ubiattach.o ubi-utils/libubi.a ubi-utils/ubiutils-common.o lib/libmtd.a
+
+You can check that it's really stacially linked with:
+
+    ldd ubiattach
+
+output should be:
+    
+    not a dynamic executable
+
+
 How to use it?
 ==============
 

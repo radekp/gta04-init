@@ -1,21 +1,28 @@
 dir /dev 755 0 0
 dir /dev/input 755 0 0
+dir /bin 755 1000 1000
+dir /pic 755 1000 1000
+dir /mnt 755 0 0
+dir /mnt/fat 755 0 0
+dir /mnt/rootfs 755 0 0
 nod /dev/console 644 0 0 c 5 1
 nod /dev/loop0 644 0 0 b 7 0
 nod /dev/tty0 644 0 0 c 4 0
 nod /dev/input/event0 644 0 0 c 13 64
 nod /dev/mmcblk0p1 644 0 0 b 179 1
+nod /dev/mmcblk0p2 644 0 0 b 179 2
+nod /dev/mmcblk0p3 644 0 0 b 179 3
+nod /dev/mmcblk0p4 644 0 0 b 179 4
+nod /dev/mtdblock4 644 0 0 b 31 4
 nod /dev/fb0 644 0 0 c 29 0
-dir /bin 755 1000 1000
-dir /pic 755 1000 1000
-dir /fat 755 0 0
+nod /dev/ubi_ctrl 644 0 0 c 10 62
 file /init gta04-init/init 755 0 0
 file /bin/busybox gta04-init/bin/busybox 755 0 0
+file /bin/ubiattach gta04-init/bin/ubiattach 755 0 0
+file /bin/sd.sh gta04-init/bin/sd.sh 755 0 0
+file /bin/nand.sh gta04-init/bin/nand.sh 755 0 0
 file /pic/1.bmp gta04-init/pic/1.bmp 755 0 0
 file /pic/2.bmp gta04-init/pic/2.bmp 755 0 0
 file /pic/sd.bmp gta04-init/pic/sd.bmp 755 0 0
 file /pic/nand.bmp gta04-init/pic/nand.bmp 755 0 0
 slink /bin/sh /bin/busybox 777 0 0
-dir /proc 755 0 0
-dir /sys 755 0 0
-dir /mnt 755 0 0

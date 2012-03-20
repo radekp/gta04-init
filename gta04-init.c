@@ -49,7 +49,7 @@ void write_file(const char *path, const char *value)
 #define BMP_LINE_LEN (BMP_WIDTH * BMP_PIX_BYTES)
 #define BMP_SIZE (BMP_WIDTH * BMP_HEIGHT * BMP_PIX_BYTES)
 
-int fb_draw(const char *path, int left, int top, int fbclear)
+int bmp_draw(const char *path, int left, int top, int fbclear)
 {
     int filefd = -1;
     int fbfd = -1;
@@ -128,31 +128,22 @@ cleanup:
 
 int main()
 {
-    int fd, i, ret;
+    int fd, ret;
     struct input_event ev;
     int x = -1;
     int y = -1;
     const char *choice = NULL;
+    const char *choice_1 = "/mnt/fat/gta04-init/fat/1.sh";
+    const char *choice_2 = "/mnt/fat/gta04-init/fat/2.sh";
+    const char *choice_sd = "/bin/sd.sh";
+    const char *choice_nand = "/bin/nand.sh";
 
     printf("gta04-init\n");
-    fb_draw("/pic/sd.bmp", 56, 96, 1);
-    fb_draw("/pic/nand.bmp", 56 + 240, 96, 0);
-    fb_draw("/pic/1.bmp", 56, 320 + 96, 0);
-    fb_draw("/pic/2.bmp", 56 + 240, 320 + 96, 0);
+    bmp_draw("/pic/sd.bmp", 56, 96, 1);
+    bmp_draw("/pic/nand.bmp", 56 + 240, 96, 0);
+    bmp_draw("/pic/1.bmp", 56, 320 + 96, 0);
+    bmp_draw("/pic/2.bmp", 56 + 240, 320 + 96, 0);
 
-    // Mount the FAT boot partition
-    for (i = 0;; i++) {
-        ret = mount("/dev/mmcblk0p1", "/fat", "vfat", 0, NULL);
-        if (ret == 0) {
-            break;
-        }
-        if (i > 50) {
-            perror("fat mount failed");
-            write_file("/dev/tty0", "failed to mount fat\n");
-            execl("/bin/busybox", "sh", (char *)(NULL));
-        }
-        usleep(100 * 1000);
-    }
     // Let user select what he wants to boot
     if ((fd = open("/dev/input/event0", O_RDONLY)) < 0) {
         write_file("/dev/tty0", "failed to open touchscreen\n");
@@ -181,23 +172,33 @@ int main()
         printf("x=%d, y=%d\n", x, y);
         if (y > 2000) {
             if (x > 2000) {
-                fb_draw("/pic/nand.bmp", 176, 256, 1);
-                choice = "/fat/gta04-init/nand.sh";
+                bmp_draw("/pic/nand.bmp", 176, 256, 1);
+                choice = choice_nand;
             } else {
-                fb_draw("/pic/sd.bmp", 176, 256, 1);
-                choice = "/fat/gta04-init/sd.sh";
+                bmp_draw("/pic/sd.bmp", 176, 256, 1);
+                choice = choice_sd;
             }
         } else if (x < 2000) {
-            fb_draw("/pic/1.bmp", 176, 256, 1);
-            choice = "/fat/gta04-init/1.sh";
+            bmp_draw("/pic/1.bmp", 176, 256, 1);
+            choice = choice_1;
         } else {
-            fb_draw("/pic/2.bmp", 176, 256, 1);
-            choice = "/fat/gta04-init/2.sh";
+            bmp_draw("/pic/2.bmp", 176, 256, 1);
+            choice = choice_2;
         }
         break;
     }
 
-    printf("running busybox shell %s\n", choice);
+    // Mount the FAT boot partition for 1.sh and 2.sh
+    if (choice == choice_1 || choice == choice_2) {
+        ret = mount("/dev/mmcblk0p1", "/mnt/fat", "vfat", 0, NULL);
+        if (ret != 0) {
+            perror("fat mount failed");
+            write_file("/dev/tty0", "failed to mount fat\n");
+            execl("/bin/busybox", "sh", (char *)(NULL));
+        }
+    }
+
+    printf("running busybox sh %s\n", choice);
     execl("/bin/busybox", "sh", choice, (char *)(NULL));
 
     return 0;
