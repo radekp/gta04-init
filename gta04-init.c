@@ -133,8 +133,8 @@ int main()
     int x = -1;
     int y = -1;
     const char *choice = NULL;
-    const char *choice_1 = "/mnt/fat/gta04-init/fat/1.sh";
-    const char *choice_2 = "/mnt/fat/gta04-init/fat/2.sh";
+    const char *choice_1 = "/mnt/fat/gta04-init/1.sh";
+    const char *choice_2 = "/mnt/fat/gta04-init/2.sh";
     const char *choice_sd = "/bin/sd.sh";
     const char *choice_nand = "/bin/nand.sh";
 
