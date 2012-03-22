@@ -29,6 +29,8 @@
 #include <linux/fb.h>
 #include <linux/input.h>
 
+#include "run-init.h"
+
 // Write string count bytes long to file
 void writen_file(const char *path, const char *value, size_t count)
 {
@@ -139,12 +141,9 @@ static int mount_fs(const char *fstype, const char *device,
     return -1;
 }
 
-static void run_init()
+static void run_rootfs_init()
 {
-    if (execl("/bin/run-init", "/mnt/rootfs", "/sbin/init", (char *)(NULL)) ==
-        -1) {
-        perror("run-init failed");
-    }
+    run_init("/mnt/rootfs", "/dev/console", "/sbin/init", (char **)(NULL));
 }
 
 int main()
@@ -217,7 +216,7 @@ int main()
         }
     } else if (choice == 3) {
         if (mount_fs("ext3", "/dev/mmcblk0p2", "/mnt/rootfs") >= 0) {
-            run_init();
+            run_rootfs_init();
         }
     } else {
         if(mkdir("/sys", 755) == -1) {
@@ -239,7 +238,7 @@ int main()
         }
         wait(&ret);
         if (mount_fs("ubifs", "ubi0:rootfs", "/mnt/rootfs") >= 0) {
-            run_init();
+            run_rootfs_init();
         }
     }
 
