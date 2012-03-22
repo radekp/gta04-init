@@ -2,7 +2,6 @@ dir /dev 755 0 0
 dir /dev/input 755 0 0
 dir /bin 755 1000 1000
 dir /pic 755 1000 1000
-dir /mnt 755 0 0
 dir /fat 755 0 0
 dir /real-root 755 0 0
 nod /dev/console 644 0 0 c 5 1
