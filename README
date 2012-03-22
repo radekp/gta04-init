@@ -47,6 +47,20 @@ output should be:
     
     not a dynamic executable
 
+How to build with klibc
+======================
+
+Debian has klibc package, so install it. It ships with klcc command
+which you can use instead of gcc for compiling against klibc. Compiling
+the init is easy, just replace gcc with klcc.
+
+Compiling ubiattach is more tricky. You should remove all unneeded tools
+in mtd-utils, edit the common.mk and replace gcc with klcc.
+
+Ubi lib will fail because of major() and minor() functions. So replace
+them with __major() and __minor() macros defined in klibc's sys/sysmacros.h
+
+Now compile ubiattach statically (like with gcc but use klcc).
 
 How to use it?
 ==============
