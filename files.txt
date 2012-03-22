@@ -17,7 +17,6 @@ nod /dev/mtdblock4 644 0 0 b 31 4
 nod /dev/fb0 644 0 0 c 29 0
 nod /dev/ubi_ctrl 644 0 0 c 10 62
 file /init gta04-init/init 755 0 0
-file /bin/run-init gta04-init/bin/run-init 755 0 0
 file /bin/ubiattach gta04-init/bin/ubiattach 755 0 0
 file /pic/1.bmp gta04-init/pic/1.bmp 755 0 0
 file /pic/2.bmp gta04-init/pic/2.bmp 755 0 0
