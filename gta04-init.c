@@ -143,7 +143,7 @@ static int mount_fs(const char *fstype, const char *device,
 
 static void run_rootfs_init()
 {
-    printf("%s\n",
+    printf("run_init error: %s\n",
            run_init("/mnt/rootfs", "/dev/console", "/sbin/init",
                     (char **)(NULL)));
 }
