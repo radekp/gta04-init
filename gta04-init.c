@@ -24,6 +24,8 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/mount.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <linux/fb.h>
 #include <linux/input.h>
 
@@ -126,17 +128,33 @@ cleanup:
     return 0;
 }
 
+static int mount_fs(const char *fstype, const char *device,
+                    const char *mountpoint)
+{
+    printf("mounting %s %s %s\n", fstype, device, mountpoint);
+    if (mount(device, mountpoint, fstype, 0, NULL) == 0) {
+        return 0;
+    }
+    perror("mount failed");
+    return -1;
+}
+
+static void run_init()
+{
+    if (execl("/bin/run-init", "/mnt/rootfs", "/sbin/init", (char *)(NULL)) ==
+        -1) {
+        perror("run-init failed");
+    }
+}
+
 int main()
 {
     int fd, ret;
     struct input_event ev;
     int x = -1;
     int y = -1;
-    const char *choice = NULL;
-    const char *choice_1 = "/mnt/fat/gta04-init/1.sh";
-    const char *choice_2 = "/mnt/fat/gta04-init/2.sh";
-    const char *choice_sd = "/bin/sd.sh";
-    const char *choice_nand = "/bin/nand.sh";
+    int choice = 0;
+    pid_t pid;
 
     printf("gta04-init\n");
     bmp_draw("/pic/sd.bmp", 56, 96, 1);
@@ -173,33 +191,57 @@ int main()
         if (y > 2000) {
             if (x > 2000) {
                 bmp_draw("/pic/nand.bmp", 176, 256, 1);
-                choice = choice_nand;
+                choice = 4;
             } else {
                 bmp_draw("/pic/sd.bmp", 176, 256, 1);
-                choice = choice_sd;
+                choice = 3;
             }
         } else if (x < 2000) {
             bmp_draw("/pic/1.bmp", 176, 256, 1);
-            choice = choice_1;
+            choice = 1;
         } else {
             bmp_draw("/pic/2.bmp", 176, 256, 1);
-            choice = choice_2;
+            choice = 2;
         }
         break;
     }
 
     // Mount the FAT boot partition for 1.sh and 2.sh
-    if (choice == choice_1 || choice == choice_2) {
-        ret = mount("/dev/mmcblk0p1", "/mnt/fat", "vfat", 0, NULL);
-        if (ret != 0) {
-            perror("fat mount failed");
-            write_file("/dev/tty0", "failed to mount fat\n");
-            execl("/bin/busybox", "sh", (char *)(NULL));
+    if (choice == 1 || choice == 2) {
+        if (mount_fs("vfat", "/dev/mmcblk0p1", "/mnt/fat") >= 0) {
+            printf("running /mnt/fat/bin/busybox sh %d.sh\n", choice);
+            if (execl("/mnt/fat/bin/busybox", "sh", choice, (char *)(NULL)) ==
+                -1) {
+                perror("/mnt/fat/bin/busybox exec failed");
+            }
+        }
+    } else if (choice == 3) {
+        if (mount_fs("ext3", "/dev/mmcblk0p2", "/mnt/rootfs") >= 0) {
+            run_init();
+        }
+    } else {
+        if(mkdir("/sys", 755) == -1) {
+            perror("mkdir /sys");
+        }
+        mount_fs("sys", "none", "/sys");
+        
+        pid = fork();
+        if (pid == -1) {
+            perror("fork failed");
+            return 0;
+        }
+        if (pid == 0) {
+            if (execl("/bin/ubiattach", "-m", "4", (char *)(NULL)) == -1) {
+                perror("ubiattach -m 4 failed");
+                return 1;
+            }
+            return 0;
+        }
+        wait(&ret);
+        if (mount_fs("ubifs", "ubi0:rootfs", "/mnt/rootfs") >= 0) {
+            run_init();
         }
     }
-
-    printf("running busybox sh %s\n", choice);
-    execl("/bin/busybox", "sh", choice, (char *)(NULL));
 
     return 0;
 }
