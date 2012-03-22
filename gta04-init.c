@@ -143,7 +143,9 @@ static int mount_fs(const char *fstype, const char *device,
 
 static void run_rootfs_init()
 {
-    run_init("/mnt/rootfs", "/dev/console", "/sbin/init", (char **)(NULL));
+    printf("%s\n",
+           run_init("/mnt/rootfs", "/dev/console", "/sbin/init",
+                    (char **)(NULL)));
 }
 
 int main()
@@ -219,11 +221,11 @@ int main()
             run_rootfs_init();
         }
     } else {
-        if(mkdir("/sys", 755) == -1) {
+        if (mkdir("/sys", 755) == -1) {
             perror("mkdir /sys");
         }
         mount_fs("sys", "none", "/sys");
-        
+
         pid = fork();
         if (pid == -1) {
             perror("fork failed");
