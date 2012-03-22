@@ -19,6 +19,7 @@
 
 #include <stdio.h>
 #include <fcntl.h>
+#include <errno.h>
 #include <unistd.h>
 #include <string.h>
 #include <sys/mman.h>
@@ -143,9 +144,9 @@ static int mount_fs(const char *fstype, const char *device,
 
 static void run_rootfs_init()
 {
-    printf("run_init error: %s\n",
-           run_init("/mnt/rootfs", "/dev/console", "/sbin/init",
-                    (char **)(NULL)));
+    printf("run_init error: %s: %s\n",
+           run_init("/real-root", "/dev/console", "/sbin/init",
+                    (char **)(NULL)), strerror(errno));
 }
 
 int main()
@@ -154,8 +155,12 @@ int main()
     struct input_event ev;
     int x = -1;
     int y = -1;
-    int choice = 0;
     pid_t pid;
+    const char *choice = NULL;
+    const char *choice_1 = "/fat/gta04-init/1.sh";
+    const char *choice_2 = "/fat/gta04-init/2.sh";
+    const char *choice_sd = "sd";
+    const char *choice_nand = "nand";
 
     printf("gta04-init\n");
     bmp_draw("/pic/sd.bmp", 56, 96, 1);
@@ -192,32 +197,31 @@ int main()
         if (y > 2000) {
             if (x > 2000) {
                 bmp_draw("/pic/nand.bmp", 176, 256, 1);
-                choice = 4;
+                choice = choice_nand;
             } else {
                 bmp_draw("/pic/sd.bmp", 176, 256, 1);
-                choice = 3;
+                choice = choice_sd;
             }
         } else if (x < 2000) {
             bmp_draw("/pic/1.bmp", 176, 256, 1);
-            choice = 1;
+            choice = choice_1;
         } else {
             bmp_draw("/pic/2.bmp", 176, 256, 1);
-            choice = 2;
+            choice = choice_2;
         }
         break;
     }
 
     // Mount the FAT boot partition for 1.sh and 2.sh
-    if (choice == 1 || choice == 2) {
-        if (mount_fs("vfat", "/dev/mmcblk0p1", "/mnt/fat") >= 0) {
-            printf("running /mnt/fat/bin/busybox sh %d.sh\n", choice);
-            if (execl("/mnt/fat/bin/busybox", "sh", choice, (char *)(NULL)) ==
-                -1) {
-                perror("/mnt/fat/bin/busybox exec failed");
+    if (choice == choice_1 || choice == choice_2) {
+        if (mount_fs("vfat", "/dev/mmcblk0p1", "/fat") >= 0) {
+            printf("running /fat/bin/busybox sh %s\n", choice);
+            if (execl("/fat/bin/busybox", "sh", choice, (char *)(NULL)) == -1) {
+                perror("busybox exec failed");
             }
         }
-    } else if (choice == 3) {
-        if (mount_fs("ext3", "/dev/mmcblk0p2", "/mnt/rootfs") >= 0) {
+    } else if (choice == choice_sd) {
+        if (mount_fs("ext3", "/dev/mmcblk0p2", "/real-root") >= 0) {
             run_rootfs_init();
         }
     } else {
@@ -239,7 +243,7 @@ int main()
             return 0;
         }
         wait(&ret);
-        if (mount_fs("ubifs", "ubi0:rootfs", "/mnt/rootfs") >= 0) {
+        if (mount_fs("ubifs", "ubi0:rootfs", "/real-root") >= 0) {
             run_rootfs_init();
         }
     }
