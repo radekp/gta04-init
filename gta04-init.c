@@ -236,7 +236,9 @@ int main()
             return 0;
         }
         if (pid == 0) {
-            if (execl("/bin/ubiattach", "-m", "4", (char *)(NULL)) == -1) {
+            if (execl
+                ("/bin/ubiattach", "/bin/ubiattach", "-m", "4",
+                 (char *)(NULL)) == -1) {
                 perror("ubiattach -m 4 failed");
                 return 1;
             }
