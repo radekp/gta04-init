@@ -144,9 +144,13 @@ static int mount_fs(const char *fstype, const char *device,
 
 static void run_rootfs_init()
 {
-    printf("run_init error: %s: %s\n",
-           run_init("/real-root", "/dev/console", "/sbin/init",
-                    (char **)(NULL)), strerror(errno));
+    char *argv[2];
+    argv[0] = "/sbin/init";
+    argv[1] = NULL;
+    const char *err;
+
+    err = run_init("/real-root", "/dev/console", "/sbin/init", argv);
+    printf("run_init error: %s: %s\n", err, strerror(errno));
 }
 
 int main()
@@ -161,13 +165,11 @@ int main()
     const char *choice_2 = "/fat/gta04-init/2.sh";
     const char *choice_sd = "sd";
     const char *choice_nand = "nand";
-
     printf("gta04-init\n");
     bmp_draw("/pic/sd.bmp", 56, 96, 1);
     bmp_draw("/pic/nand.bmp", 56 + 240, 96, 0);
     bmp_draw("/pic/1.bmp", 56, 320 + 96, 0);
     bmp_draw("/pic/2.bmp", 56 + 240, 320 + 96, 0);
-
     // Let user select what he wants to boot
     if ((fd = open("/dev/input/event0", O_RDONLY)) < 0) {
         write_file("/dev/tty0", "failed to open touchscreen\n");
@@ -175,7 +177,6 @@ int main()
 
     for (;;) {
         size_t rb = read(fd, &ev, sizeof(ev));
-
         if (rb < (int)sizeof(struct input_event)) {
             perror("short read");
         }
@@ -228,8 +229,7 @@ int main()
         if (mkdir("/sys", 755) == -1) {
             perror("mkdir /sys");
         }
-        mount_fs("sys", "none", "/sys");
-
+        mount_fs("sysfs", "none", "/sys");
         pid = fork();
         if (pid == -1) {
             perror("fork failed");
