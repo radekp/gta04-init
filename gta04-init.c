@@ -247,9 +247,11 @@ int main()
             }
             return 0;
         }
-        wait(&ret);
-        if (mount_fs("ubifs", "ubi0:rootfs", "/real-root") >= 0) {
-            run_rootfs_init();
+        for (;;) {
+            waitpid(pid, &ret, 0);
+            if (mount_fs("ubifs", "ubi0:rootfs", "/real-root") >= 0) {
+                run_rootfs_init();
+            }
         }
     }
 
