@@ -155,11 +155,14 @@ static void run_rootfs_init()
 
 int main()
 {
-    int fd, ret;
+    int fd = -1;
+    int ret, i;
+    size_t rb;
     struct input_event ev;
     int x = -1;
     int y = -1;
     pid_t pid;
+    char bootdev[32];
     const char *choice = NULL;
     const char *choice_1 = "/fat/gta04-init/1.sh";
     const char *choice_2 = "/fat/gta04-init/2.sh";
@@ -170,13 +173,43 @@ int main()
     bmp_draw("/pic/nand.bmp", 56 + 240, 96, 0);
     bmp_draw("/pic/1.bmp", 56, 320 + 96, 0);
     bmp_draw("/pic/2.bmp", 56 + 240, 320 + 96, 0);
-    // Let user select what he wants to boot
-    if ((fd = open("/dev/input/event0", O_RDONLY)) < 0) {
-        write_file("/dev/tty0", "failed to open touchscreen\n");
+
+    // Mount fat
+    for (i = 0;; i++) {
+        if (mount_fs("vfat", "/dev/mmcblk0p1", "/fat") < 0) {
+            if (i > 5) {
+                break;
+            }
+            sleep(1);
+            continue;
+        }
+        if ((fd = open("/fat/gta04-init/bootdev", O_RDONLY)) < 0) {
+            perror("/fat/gta04-init/bootdev");
+            break;
+        }
+        // Read config
+        rb = read(fd, bootdev, 31);
+        if (rb > 0) {
+            bootdev[rb] = 0;
+            if (strstr(bootdev, choice_sd)) {
+                choice = choice_sd;
+            } else if (strstr(bootdev, choice_sd)) {
+                choice = choice_nand;
+            }
+        }
+        close(fd);
+        unlink("/fat/gta04-init/bootdev");  // if booted distro does not create bootdev file (e.g. distro is broken) we fallback to bootmenu
+        break;
     }
 
-    for (;;) {
-        size_t rb = read(fd, &ev, sizeof(ev));
+    // Let user select what he wants to boot
+    while (choice == NULL) {
+        if (fd < 0 && (fd = open("/dev/input/event0", O_RDWR)) < 0) {
+            write_file("/dev/tty0", "failed to open touchscreen\n");
+            break;
+        }
+
+        rb = read(fd, &ev, sizeof(ev));
         if (rb < (int)sizeof(struct input_event)) {
             perror("short read");
         }
@@ -212,45 +245,47 @@ int main()
         }
         break;
     }
+    return 0;
 
     // Mount the FAT boot partition for 1.sh and 2.sh
     if (choice == choice_1 || choice == choice_2) {
-        if (mount_fs("vfat", "/dev/mmcblk0p1", "/fat") >= 0) {
-            printf("running /fat/gta04-init/busybox sh %s\n", choice);
-            if (execl("/fat/gta04-init/busybox", "sh", choice, (char *)(NULL))
-                == -1) {
-                perror("busybox exec failed");
-            }
+        printf("running /fat/gta04-init/busybox sh %s\n", choice);
+        if (execl("/fat/gta04-init/busybox", "sh", choice, (char *)(NULL))
+            == -1) {
+            perror("busybox exec failed");
         }
-    } else if (choice == choice_sd) {
-        if ((mount_fs("ext4", "/dev/mmcblk0p2", "/real-root") >= 0) ||
-            (mount_fs("ext3", "/dev/mmcblk0p2", "/real-root") >= 0) ||
-            (mount_fs("btrfs", "/dev/mmcblk0p2", "/real-root") >= 0)) {
-            run_rootfs_init();
+        return 0;
+    }
+    // SD card
+    if ((choice == choice_sd) &&
+        ((mount_fs("ext4", "/dev/mmcblk0p2", "/real-root") >= 0) ||
+         (mount_fs("ext3", "/dev/mmcblk0p2", "/real-root") >= 0) ||
+         (mount_fs("btrfs", "/dev/mmcblk0p2", "/real-root") >= 0))) {
+        run_rootfs_init();
+        return 0;
+    }
+    // Boot from NAND if chosen or SD mount failed
+    if (mkdir("/sys", 755) == -1) {
+        perror("mkdir /sys");
+    }
+    mount_fs("sysfs", "none", "/sys");
+    pid = fork();
+    if (pid == -1) {
+        perror("fork failed");
+        return 0;
+    }
+    if (pid == 0) {
+        if (execl
+            ("/bin/ubiattach", "/bin/ubiattach", "-m", "4",
+             (char *)(NULL)) == -1) {
+            perror("ubiattach -m 4 failed");
+            return 1;
         }
-    } else {
-        if (mkdir("/sys", 755) == -1) {
-            perror("mkdir /sys");
-        }
-        mount_fs("sysfs", "none", "/sys");
-        pid = fork();
-        if (pid == -1) {
-            perror("fork failed");
-            return 0;
-        }
-        if (pid == 0) {
-            if (execl
-                ("/bin/ubiattach", "/bin/ubiattach", "-m", "4",
-                 (char *)(NULL)) == -1) {
-                perror("ubiattach -m 4 failed");
-                return 1;
-            }
-            return 0;
-        }
-        wait(&ret);
-        if (mount_fs("ubifs", "ubi0:rootfs", "/real-root") >= 0) {
-            run_rootfs_init();
-        }
+        return 0;
+    }
+    wait(&ret);
+    if (mount_fs("ubifs", "ubi0:rootfs", "/real-root") >= 0) {
+        run_rootfs_init();
     }
 
     return 0;
