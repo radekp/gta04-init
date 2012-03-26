@@ -152,7 +152,7 @@ static void run_rootfs_init()
     // Mount devtmpfs on real-root. During normal boot it is mounted
     // automatically by kernel, we do it too to be compatible.
     mount_fs("devtmpfs", "none", "/real-root/dev");
-    
+
     err = run_init("/real-root", "/dev/console", "/sbin/init", argv);
     printf("run_init error: %s: %s\n", err, strerror(errno));
 }
@@ -287,13 +287,11 @@ int main()
         }
         return 0;
     }
-        for (;;) {
-            waitpid(pid, &ret, 0);
-            if (mount_fs("ubifs", "ubi0:rootfs", "/real-root") >= 0) {
-                run_rootfs_init();
-            }
+    for (;;) {
+        waitpid(pid, &ret, 0);
+        if (mount_fs("ubifs", "ubi0:rootfs", "/real-root") >= 0) {
+            run_rootfs_init();
         }
     }
-
     return 0;
 }
