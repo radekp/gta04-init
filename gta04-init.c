@@ -249,9 +249,8 @@ int main()
         }
         break;
     }
-    return 0;
 
-    // Mount the FAT boot partition for 1.sh and 2.sh
+    // Run 1.sh or 2.sh from FAT partition, busybox must be there
     if (choice == choice_1 || choice == choice_2) {
         printf("running /fat/gta04-init/busybox sh %s\n", choice);
         if (execl("/fat/gta04-init/busybox", "sh", choice, (char *)(NULL))
