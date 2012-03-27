@@ -14,7 +14,9 @@ Why not use u-boot menu?
 What are the downsides?
 =======================
 
-1/ all rootfs have to use the same kernel
+1/ rootfs should work with booted kernel. You can use scripts to copy kernel
+   which rootfs expects to uImage. Then write bootdev file (see below) and
+   reboot.
 
 How to build this?
 ==================
@@ -48,7 +50,7 @@ output should be:
     not a dynamic executable
 
 How to build with klibc
-======================
+=======================
 
 Debian has klibc package, so install it. It ships with klcc command
 which you can use instead of gcc for compiling against klibc. Compiling
@@ -86,6 +88,24 @@ E.g.:
 
 But you can do anything you want there. E.g. launch "sh" and use shell over
 serial cable.
+
+Can i skip the rootfs selection
+===============================
+
+Yes, you can write "sd" or "nand" to /fat/gta04-init/bootdev file. Gta04-init
+program then reads the file in memor, deletes it and boots the option without
+waiting for user input.
+
+Writing to the file should be implemented by distributions before they shutdown
+the system.
+
+The file is always by gta04-init in order to bring the rootfs menu in case that
+the booted rootfs does not work.
+
+See also this mail:
+
+    http://lists.goldelico.com/pipermail/gta04-owner/2012-March/002048.html
+
 
 Troubleshooting
 ===============
