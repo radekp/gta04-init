@@ -93,7 +93,7 @@ Can i skip the rootfs selection
 ===============================
 
 Yes, you can write "sd" or "nand" to /fat/gta04-init/bootdev file. Gta04-init
-program then reads the file in memor, deletes it and boots the option without
+program then reads the file in memory, deletes it and boots the option without
 waiting for user input.
 
 Writing to the file should be implemented by distributions before they shutdown

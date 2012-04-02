@@ -234,17 +234,13 @@ int main()
         printf("x=%d, y=%d\n", x, y);
         if (y > 2000) {
             if (x > 2000) {
-                bmp_draw("/pic/nand.bmp", 176, 256, 1);
                 choice = choice_nand;
             } else {
-                bmp_draw("/pic/sd.bmp", 176, 256, 1);
                 choice = choice_sd;
             }
         } else if (x < 2000) {
-            bmp_draw("/pic/1.bmp", 176, 256, 1);
             choice = choice_1;
         } else {
-            bmp_draw("/pic/2.bmp", 176, 256, 1);
             choice = choice_2;
         }
         break;
@@ -252,6 +248,7 @@ int main()
 
     // Run 1.sh or 2.sh from FAT partition, busybox must be there
     if (choice == choice_1 || choice == choice_2) {
+        bmp_draw(choice == choice_1 ? "/pic/1.bmp" : "/pic/2.bmp", 176, 256, 1);
         printf("running /fat/gta04-init/busybox sh %s\n", choice);
         if (execl("/fat/gta04-init/busybox", "sh", choice, (char *)(NULL))
             == -1) {
@@ -264,10 +261,13 @@ int main()
         ((mount_fs("ext4", "/dev/mmcblk0p2", "/real-root") >= 0) ||
          (mount_fs("ext3", "/dev/mmcblk0p2", "/real-root") >= 0) ||
          (mount_fs("btrfs", "/dev/mmcblk0p2", "/real-root") >= 0))) {
+        bmp_draw("/pic/sd.bmp", 176, 256, 1);
         run_rootfs_init();
         return 0;
     }
     // Boot from NAND if chosen or SD mount failed
+    bmp_draw("/pic/nand.bmp", 176, 256, 1);
+
     if (mkdir("/sys", 755) == -1) {
         perror("mkdir /sys");
     }
