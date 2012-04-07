@@ -27,6 +27,7 @@
 #include <sys/mount.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/reboot.h>
 #include <linux/fb.h>
 #include <linux/input.h>
 
@@ -142,12 +143,150 @@ static int mount_fs(const char *fstype, const char *device,
     return -1;
 }
 
-static void run_rootfs_init()
+// Compare src and dst files. Return 0 if their content is same. Copy src to
+// dst and return 1 if they are different. On error returns negative error
+// code.
+static int update_file(const char *src, const char *dst)
+{
+    int res = 0;
+    int src_fd = -1;
+    int dst_fd = -1;
+    struct stat st;
+    int count, src_rb, dst_b;
+    char src_buf[4096];
+    char dst_buf[4096];
+
+    if ((src_fd = open(src, O_RDONLY)) < 0) {
+        goto err_open_src;
+    }
+
+    if ((dst_fd = open(dst, O_RDWR | O_CREAT, 00644)) < 0) {
+        goto err_open_dst;
+    }
+
+    if (fstat(src_fd, &st) < 0) {
+        goto err_stat;
+    }
+    // Make sure src and dst have same length
+    if (ftruncate(dst_fd, st.st_size) < 0) {
+        goto err_truncate;
+    }
+
+    for (;;) {
+        src_rb = read(src_fd, src_buf, 4096);
+        if (src_rb < 0) {
+            goto err_read_src;
+        }
+        if (src_rb == 0) {
+            break;
+        }
+        dst_b = 0;
+        do {
+            if ((count = read(dst_fd, dst_buf + dst_b, src_rb - dst_b)) < 0) {
+                goto err_read_dst;
+            }
+            dst_b += count;
+        } while (dst_b < src_rb);
+
+        if (memcmp(src_buf, dst_buf, src_rb) == 0) {
+            continue;
+        }
+        res = 1;
+        if (lseek(dst_fd, -src_rb, SEEK_CUR) < 0) {
+            goto err_seek;
+        }
+        dst_b = 0;
+        do {
+            if ((count = write(dst_fd, src_buf + dst_b, src_rb - dst_b)) < 0) {
+                goto err_write;
+            }
+            dst_b += count;
+        }
+        while (dst_b < src_rb);
+    }
+
+cleanup:
+    if (src_fd > 0) {
+        close(src_fd);
+    }
+    if (dst_fd > 0) {
+        close(dst_fd);
+    }
+    return res;
+
+err_src:
+    res = -1;
+    printf("file %s ", src);
+    goto cleanup;
+
+err_dst:
+    res = -2;
+    printf("file %s ", dst);
+    goto cleanup;
+
+err_open_src:
+    perror("open failed");
+    goto err_src;
+
+err_stat:
+    perror("stat failed");
+    goto err_src;
+
+err_truncate:
+    perror("truncate failed");
+    goto err_dst;
+    
+err_open_dst:
+    perror("open failed");
+    goto err_dst;
+
+err_read_src:
+    perror("read failed");
+    goto err_src;
+
+err_read_dst:
+    perror("read failed");
+    goto err_dst;
+
+err_seek:
+    perror("seek failed");
+    goto err_dst;
+
+err_write:
+    perror("write failed");
+    goto err_dst;
+}
+
+static void run_rootfs_init(int check_kernel, const char * bootdev, const char * bootdir)
 {
     char *argv[2];
     argv[0] = "/sbin/init";
     argv[1] = NULL;
     const char *err;
+    char dev_path[256];
+    char logo_path[256];
+    char uimage_path[256];
+    char bootdev_content[256];
+    
+    snprintf(dev_path, 256, "/real-root%s/dev", bootdir);
+    snprintf(logo_path, 256, "/real-root%s/boot/logo.bmp", bootdir);
+    snprintf(uimage_path, 256, "/real-root%s/boot/uImage", bootdir);
+
+    // Check if we have the same kernel as on /real-root/boot
+    // If not copy it to uImage and reboot
+    if(check_kernel && update_file("/real-root/boot/uImage", "/fat/uImage") > 0) {
+        snprintf(bootdev_content, 256, "%s %s", bootdev, bootdir);
+        printf("updated kernel from real-root and rebooting with bootdev=%s\n", bootdev_content);
+        write_file("/fat/gta04-init/bootdev", bootdev_content);
+        umount("/fat");
+        umount("/real-root");
+        reboot(LINUX_REBOOT_CMD_RESTART);
+        sleep(10);
+        return;
+    }
+
+    // Draw distribution logo if supplied
+    bmp_draw("/real-root/boot/logo.bmp", 176, 256, 1);
 
     // Mount devtmpfs on real-root. During normal boot it is mounted
     // automatically by kernel, we do it too to be compatible.
@@ -166,12 +305,14 @@ int main()
     int x = -1;
     int y = -1;
     pid_t pid;
-    char bootdev[32];
-    const char *choice = NULL;
+    char bootdevbuf[256];
     const char *choice_1 = "/fat/gta04-init/1.sh";
     const char *choice_2 = "/fat/gta04-init/2.sh";
-    const char *choice_sd = "sd";
-    const char *choice_nand = "nand";
+    const char *choice_sd = "/dev/mmcblk0p2";
+    const char *choice_nand = "ubi0:rootfs";
+    const char *bootdev = NULL;
+    char *bootdir = "";           // optional directory to chroot to
+    
     printf("gta04-init\n");
     bmp_draw("/pic/sd.bmp", 56, 96, 1);
     bmp_draw("/pic/nand.bmp", 56 + 240, 96, 0);
@@ -191,14 +332,13 @@ int main()
             perror("/fat/gta04-init/bootdev");
             break;
         }
-        // Read config
-        rb = read(fd, bootdev, 31);
+        // Read config - e.g. /dev/mmcblk0p2 /shr
+        rb = read(fd, bootdevbuf, 255);
         if (rb > 0) {
-            bootdev[rb] = 0;
-            if (strstr(bootdev, choice_sd)) {
-                choice = choice_sd;
-            } else if (strstr(bootdev, choice_sd)) {
-                choice = choice_nand;
+            bootdev = bootdevbuf;
+            bootdevbuf[rb] = 0;
+            if((bootdir = strchr(bootdev, ' ')) != NULL) {
+                *bootdir = 0;
             }
         }
         close(fd);
@@ -207,7 +347,7 @@ int main()
     }
 
     // Let user select what he wants to boot
-    while (choice == NULL) {
+    while (bootdev == NULL) {
         if (fd < 0 && (fd = open("/dev/input/event0", O_RDWR)) < 0) {
             write_file("/dev/tty0", "failed to open touchscreen\n");
             break;
@@ -234,40 +374,37 @@ int main()
         printf("x=%d, y=%d\n", x, y);
         if (y > 2000) {
             if (x > 2000) {
-                choice = choice_nand;
+                bootdev = choice_nand;
             } else {
-                choice = choice_sd;
+                bootdev = choice_sd;
             }
         } else if (x < 2000) {
-            choice = choice_1;
+            bootdev = choice_1;
         } else {
-            choice = choice_2;
+            bootdev = choice_2;
         }
         break;
     }
 
     // Run 1.sh or 2.sh from FAT partition, busybox must be there
-    if (choice == choice_1 || choice == choice_2) {
-        bmp_draw(choice == choice_1 ? "/pic/1.bmp" : "/pic/2.bmp", 176, 256, 1);
-        printf("running /fat/gta04-init/busybox sh %s\n", choice);
-        if (execl("/fat/gta04-init/busybox", "sh", choice, (char *)(NULL))
+    if (bootdev == choice_1 || bootdev == choice_2) {
+        bmp_draw(bootdev == choice_1 ? "/pic/1.bmp" : "/pic/2.bmp", 176, 256, 1);
+        printf("running /fat/gta04-init/busybox sh %s\n", bootdev);
+        if (execl("/fat/gta04-init/busybox", "sh", bootdev, (char *)(NULL))
             == -1) {
             perror("busybox exec failed");
         }
         return 0;
     }
     // SD card
-    if ((choice == choice_sd) &&
-        ((mount_fs("ext4", "/dev/mmcblk0p2", "/real-root") >= 0) ||
-         (mount_fs("ext3", "/dev/mmcblk0p2", "/real-root") >= 0) ||
-         (mount_fs("btrfs", "/dev/mmcblk0p2", "/real-root") >= 0))) {
-        bmp_draw("/pic/sd.bmp", 176, 256, 1);
-        run_rootfs_init();
+    if ((strstr(bootdev, "ubi0:") == NULL) &&
+        ((mount_fs("ext4", bootdev, "/real-root") >= 0) ||
+         (mount_fs("ext3", bootdev, "/real-root") >= 0) ||
+         (mount_fs("btrfs", bootdev, "/real-root") >= 0))) {
+        run_rootfs_init(1, bootdev, bootdir);
         return 0;
     }
     // Boot from NAND if chosen or SD mount failed
-    bmp_draw("/pic/nand.bmp", 176, 256, 1);
-
     if (mkdir("/sys", 755) == -1) {
         perror("mkdir /sys");
     }
@@ -288,8 +425,8 @@ int main()
     }
     for (;;) {
         waitpid(pid, &ret, 0);
-        if (mount_fs("ubifs", "ubi0:rootfs", "/real-root") >= 0) {
-            run_rootfs_init();
+        if (mount_fs("ubifs", bootdev, "/real-root") >= 0) {
+            run_rootfs_init(0, bootdev, bootdir);
         }
     }
     return 0;
