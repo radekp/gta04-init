@@ -38,6 +38,7 @@ void writen_file(const char *path, const char *value, size_t count)
 {
     int fd = open(path, O_WRONLY);
     if (fd < 0) {
+        perror(path);
         return;
     }
     write(fd, value, count);
@@ -235,7 +236,7 @@ err_stat:
 err_truncate:
     perror("truncate failed");
     goto err_dst;
-    
+
 err_open_dst:
     perror("open failed");
     goto err_dst;
@@ -257,7 +258,8 @@ err_write:
     goto err_dst;
 }
 
-static void run_rootfs_init(int check_kernel, const char * bootdev, const char * bootdir)
+static void run_rootfs_init(int check_kernel, const char *bootdev,
+                            const char *bootdir)
 {
     char *argv[2];
     argv[0] = "/sbin/init";
@@ -266,33 +268,45 @@ static void run_rootfs_init(int check_kernel, const char * bootdev, const char *
     char dev_path[256];
     char logo_path[256];
     char uimage_path[256];
-    char bootdev_content[256];
-    
+    char chrootdir[256];
+
     snprintf(dev_path, 256, "/real-root%s/dev", bootdir);
     snprintf(logo_path, 256, "/real-root%s/boot/logo.bmp", bootdir);
     snprintf(uimage_path, 256, "/real-root%s/boot/uImage", bootdir);
+    snprintf(chrootdir, 256, ".%s", bootdir);
+
+    printf("dev_path=%s\n", dev_path);
+    printf("logo_path=%s\n", logo_path);
+    printf("uimage_path=%s\n", uimage_path);
+    printf("chrootdir=%s\n", chrootdir);
 
     // Check if we have the same kernel as on /real-root/boot
     // If not copy it to uImage and reboot
-    if(check_kernel && update_file("/real-root/boot/uImage", "/fat/uImage") > 0) {
-        snprintf(bootdev_content, 256, "%s %s", bootdev, bootdir);
-        printf("updated kernel from real-root and rebooting with bootdev=%s\n", bootdev_content);
-        write_file("/fat/gta04-init/bootdev", bootdev_content);
-        umount("/fat");
-        umount("/real-root");
+    if (check_kernel && update_file(uimage_path, "/fat/uImage") > 0) {
+        printf("updated kernel from real-root and rebooting\n");
+        if (umount("/fat")) {
+            perror("umount /fat");
+        }
+        if (umount("/real-root")) {
+            perror("umount /real-root");
+        }
         reboot(LINUX_REBOOT_CMD_RESTART);
-        sleep(10);
+        sleep(60);
         return;
     }
-
+    // Remove boodev. Distro should supply it on reboot. If not we fallback to
+    // bootmenu.
+    if (unlink("/fat/gta04-init/bootdev")) {
+        perror("boodev unlink failed");
+    }
     // Draw distribution logo if supplied
-    bmp_draw("/real-root/boot/logo.bmp", 176, 256, 1);
+    bmp_draw(logo_path, 176, 256, 1);
 
     // Mount devtmpfs on real-root. During normal boot it is mounted
     // automatically by kernel, we do it too to be compatible.
-    mount_fs("devtmpfs", "none", "/real-root/dev");
+    mount_fs("devtmpfs", "none", dev_path);
 
-    err = run_init("/real-root", "/dev/console", "/sbin/init", argv);
+    err = run_init("/real-root", chrootdir, "/dev/console", "/sbin/init", argv);
     printf("run_init error: %s: %s\n", err, strerror(errno));
 }
 
@@ -311,8 +325,8 @@ int main()
     const char *choice_sd = "/dev/mmcblk0p2";
     const char *choice_nand = "ubi0:rootfs";
     const char *bootdev = NULL;
-    char *bootdir = "";           // optional directory to chroot to
-    
+    char *bootdir = "";         // optional directory to chroot to
+
     printf("gta04-init\n");
     bmp_draw("/pic/sd.bmp", 56, 96, 1);
     bmp_draw("/pic/nand.bmp", 56 + 240, 96, 0);
@@ -335,14 +349,21 @@ int main()
         // Read config - e.g. /dev/mmcblk0p2 /shr
         rb = read(fd, bootdevbuf, 255);
         if (rb > 0) {
+            printf("bootdevbuf=%s\n", bootdevbuf);
             bootdev = bootdevbuf;
             bootdevbuf[rb] = 0;
-            if((bootdir = strchr(bootdev, ' ')) != NULL) {
-                *bootdir = 0;
+            while (rb > 0 && (bootdevbuf[rb - 1] <= 32)) {  // remove whitespaces and new lines
+                rb--;
+                bootdevbuf[rb] = 0;
             }
+            if ((bootdir = strchr(bootdev, ' ')) != NULL) {
+                *bootdir = 0;
+                bootdir++;
+            }
+            printf("bootdev=%s\n", bootdev);
+            printf("bootdir=%s\n", bootdir);
         }
         close(fd);
-        unlink("/fat/gta04-init/bootdev");  // if booted distro does not create bootdev file (e.g. distro is broken) we fallback to bootmenu
         break;
     }
 
@@ -388,7 +409,8 @@ int main()
 
     // Run 1.sh or 2.sh from FAT partition, busybox must be there
     if (bootdev == choice_1 || bootdev == choice_2) {
-        bmp_draw(bootdev == choice_1 ? "/pic/1.bmp" : "/pic/2.bmp", 176, 256, 1);
+        bmp_draw(bootdev == choice_1 ? "/pic/1.bmp" : "/pic/2.bmp", 176, 256,
+                 1);
         printf("running /fat/gta04-init/busybox sh %s\n", bootdev);
         if (execl("/fat/gta04-init/busybox", "sh", bootdev, (char *)(NULL))
             == -1) {

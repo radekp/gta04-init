@@ -153,8 +153,8 @@ static int nuke(const char *what)
 	}
 }
 
-const char *run_init(const char *realroot, const char *console,
-		     const char *init, char **initargs)
+const char *run_init(const char *realroot, const char *chrootdir,
+                     const char *console, const char *init, char **initargs)
 {
 	struct stat rst, cst;
 	struct statfs sfs;
@@ -192,7 +192,7 @@ const char *run_init(const char *realroot, const char *console,
 		return "overmounting root";
 
 	/* chroot, chdir */
-	if (chroot(".") || chdir("/"))
+	if (chroot(chrootdir) || chdir("/"))
 		return "chroot";
 
 	/* Open /dev/console */
