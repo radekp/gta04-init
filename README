@@ -11,13 +11,6 @@ Why not use u-boot menu?
 4/ You can do nice tricks - like unpack distro tarball and run it from memory
 5/ My GTA04 does not have AUX button needed to bring u-boot menu
 
-What are the downsides?
-=======================
-
-1/ rootfs should work with booted kernel. You can use scripts to copy kernel
-   which rootfs expects to uImage. Then write bootdev file (see below) and
-   reboot.
-
 How to build this?
 ==================
 
@@ -92,20 +85,45 @@ serial cable.
 Can i skip the rootfs selection
 ===============================
 
-Yes, you can write "sd" or "nand" to /fat/gta04-init/bootdev file. Gta04-init
-program then reads the file in memory, deletes it and boots the option without
-waiting for user input.
+Yes, you can use boodev file for straight boot to given partition.
 
 Writing to the file should be implemented by distributions before they shutdown
 the system.
 
-The file is always by gta04-init in order to bring the rootfs menu in case that
-the booted rootfs does not work.
+The file is always deleted by gta04-init in order to bring the rootfs menu
+in case that the booted rootfs does not work.
 
 See also this mail:
 
     http://lists.goldelico.com/pipermail/gta04-owner/2012-March/002048.html
 
+What is bootdev file format?
+============================
+
+The boodev should contain boot partition and optionally subdirectory on the
+partition.
+
+E.g.:
+
+"/dev/mmcblk0p2 /" boots to 2nd partition on MMC
+"ubi0:rootfs /" boots to "rootfs" UBI partition on NAND
+"/dev/mmcblk0p2 /shr" boots 2nd partition on MMC and root will be /shr directory
+
+The subdirectory option allows you to have multiple distribution on the same
+partition.
+
+How about kernels
+=================
+
+gta04-init checks /boot/uImage on partition from which we want to boot. If the
+kernel does not match the kernel in /fat/uImage it updates it and reboots so that
+the distribution kernel is always used.
+
+Can i customize the logo
+========================
+
+Yes, simply provide /boot/logo.bmp in your distro's tarbal. It must be 32bit ARGB
+bmp image.
 
 Troubleshooting
 ===============
