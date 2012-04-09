@@ -36,12 +36,14 @@
 // Write string count bytes long to file
 void writen_file(const char *path, const char *value, size_t count)
 {
-    int fd = open(path, O_WRONLY);
+    int fd = open(path, O_WRONLY | O_CREAT, 00644);
     if (fd < 0) {
         perror(path);
         return;
     }
-    write(fd, value, count);
+    if (write(fd, value, count) != count) {
+        perror(path);
+    }
     close(fd);
 }
 
@@ -269,24 +271,25 @@ static void run_rootfs_init(int update_kernel, const char *bootdev,
     char logo_path[256];
     char uimage_path[256];
     char chrootdir[256];
+    char bootdev_content[256];
 
     snprintf(dev_path, 256, "/real-root%s/dev", bootdir);
     snprintf(logo_path, 256, "/real-root%s/boot/logo.bmp", bootdir);
     snprintf(uimage_path, 256, "/real-root%s/boot/uImage", bootdir);
     snprintf(chrootdir, 256, ".%s", bootdir);
+    snprintf(bootdev_content, 256, "%s %s", bootdev, bootdir);
 
     printf("dev_path=%s\n", dev_path);
     printf("logo_path=%s\n", logo_path);
     printf("uimage_path=%s\n", uimage_path);
     printf("chrootdir=%s\n", chrootdir);
+    printf("bootdev_content=%s\n", bootdev_content);
 
     // Check if we have the same kernel as on /real-root/boot
     // If not copy it to uImage and reboot
     if (update_kernel && update_file(uimage_path, "/fat/uImage") > 0) {
         printf("updated kernel from real-root and rebooting\n");
-        if (rename("/fat/gta04-init/lastbootdev", "/fat/gta04-init/bootdev")) {
-            perror("rename to boodev failed");
-        }
+        write_file("/fat/gta04-init/bootdev", bootdev_content);
         if (umount("/fat")) {
             perror("umount /fat");
         }
@@ -297,6 +300,9 @@ static void run_rootfs_init(int update_kernel, const char *bootdev,
         sleep(60);
         return;
     }
+    // Create lastbootdev. Distro can rename it to boodev to skip menu
+    write_file("/fat/gta04-init/lastbootdev", bootdev_content);
+
     // Unmount fat - we dont need it anymore
     if (umount("/fat")) {
         perror("umount /fat");
@@ -327,7 +333,7 @@ int main()
     const char *choice_sd = "/dev/mmcblk0p2";
     const char *choice_nand = "ubi0:rootfs";
     const char *bootdev = NULL;
-    char *bootdir = "";         // optional directory to chroot to
+    char *bootdir = NULL;       // optional directory to chroot to
 
     printf("gta04-init\n");
     bmp_draw("/pic/sd.bmp", 56, 96, 1);
@@ -358,7 +364,7 @@ int main()
                 rb--;
                 bootdevbuf[rb] = 0;
             }
-            if ((bootdir = strchr(bootdev, ' ')) != NULL) {
+            if ((bootdir = strchr(bootdev, ' '))) {
                 *bootdir = 0;
                 bootdir++;
             }
@@ -367,12 +373,8 @@ int main()
         }
         close(fd);
 
-        // Move bootdev to lastbootdev. Distro can rename it back on reboot.
-        // If not we fallback to bootmenu.
-        unlink("/fat/gta04-init/lastbootdev");
-        if (rename("/fat/gta04-init/bootdev", "/fat/gta04-init/lastbootdev")) {
-            perror("rename to lastboodev failed");
-        }
+        // Remove bootdev - distro should create it again to skip bootmenu
+        unlink("/fat/gta04-init/bootdev");
         break;
     }
 
@@ -415,6 +417,9 @@ int main()
         }
         break;
     }
+
+    if (bootdir == NULL)
+        bootdir = "";
 
     // Run 1.sh or 2.sh from FAT partition, busybox must be there
     if (bootdev == choice_1 || bootdev == choice_2) {
