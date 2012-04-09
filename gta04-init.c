@@ -36,7 +36,7 @@
 // Write string count bytes long to file
 void writen_file(const char *path, const char *value, size_t count)
 {
-    int fd = open(path, O_WRONLY | O_CREAT, 00644);
+    int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 00644);
     if (fd < 0) {
         perror(path);
         return;
@@ -300,7 +300,7 @@ static void run_rootfs_init(int update_kernel, const char *bootdev,
         sleep(60);
         return;
     }
-    // Create lastbootdev. Distro can rename it to boodev to skip menu
+    // Create lastbootdev so that distro knows how it was booted
     write_file("/fat/gta04-init/lastbootdev", bootdev_content);
 
     // Unmount fat - we dont need it anymore
