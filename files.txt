@@ -12,6 +12,11 @@ nod /dev/mmcblk0p1 644 0 0 b 179 1
 nod /dev/mmcblk0p2 644 0 0 b 179 2
 nod /dev/mmcblk0p3 644 0 0 b 179 3
 nod /dev/mmcblk0p4 644 0 0 b 179 4
+nod /dev/mmcblk0p5 644 0 0 b 179 5
+nod /dev/mmcblk0p6 644 0 0 b 179 6
+nod /dev/mmcblk0p7 644 0 0 b 179 7
+nod /dev/mmcblk0p8 644 0 0 b 179 8
+nod /dev/mmcblk0p9 644 0 0 b 179 9
 nod /dev/mtdblock4 644 0 0 b 31 4
 nod /dev/fb0 644 0 0 c 29 0
 nod /dev/ubi_ctrl 644 0 0 c 10 62
