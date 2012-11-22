@@ -18,6 +18,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
@@ -318,10 +319,12 @@ static void run_rootfs_init(int update_kernel, const char *bootdev,
     printf("run_init error: %s: %s\n", err, strerror(errno));
 }
 
-int main()
+int main(int argc, char *argv[], char **env)
 {
     int fd = -1;
     int ret, i;
+    int update_kernel;
+    struct stat st;
     size_t rb;
     struct input_event ev;
     int x = -1;
@@ -335,27 +338,33 @@ int main()
     const char *bootdev = NULL;
     char *bootdir = NULL;       // optional directory to chroot to
 
-    printf("gta04-init\n");
-    bmp_draw("/pic/sd.bmp", 56, 96, 1);
-    bmp_draw("/pic/nand.bmp", 56 + 240, 96, 0);
-    bmp_draw("/pic/1.bmp", 56, 320 + 96, 0);
-    bmp_draw("/pic/2.bmp", 56 + 240, 320 + 96, 0);
+    // Check for realroot=/dev/xxx on kernel cmd line. This means we were
+    // launched from uboot menu by taping the partition picture and we bootdev
+    // straight to that partition without updating kernel.
+    bootdev = getenv("realroot");
+    update_kernel = (bootdev == NULL);
 
     // Mount fat
-    for (i = 0;; i++) {
+    for (i = 0; bootdev == NULL; i++) {
         if (mount_fs("vfat", "/dev/mmcblk0p1", "/fat") < 0) {
             if (i > 5) {
+                bootdev = "/dev/mmcblk0p1";    // p1 is most likely ext partition so boot there
                 break;
             }
             sleep(1);
             continue;
         }
+        if (stat("/fat/gta04-init", &st) < 0) {     // no gta04-init dir, boot from p2
+            bootdev = choice_sd;
+            break;
+        }
+            
         if ((fd = open("/fat/gta04-init/bootdev", O_RDONLY)) < 0) {
             perror("/fat/gta04-init/bootdev");
             break;
         }
         // Read config - e.g. /dev/mmcblk0p2 /shr
-        rb = read(fd, bootdevbuf, 255);
+        rb = read(fd, bootdevbuf, sizeof(bootdevbuf) - 1);
         if (rb > 0) {
             printf("bootdevbuf=%s\n", bootdevbuf);
             bootdev = bootdevbuf;
@@ -380,6 +389,12 @@ int main()
 
     // Let user select what he wants to boot
     while (bootdev == NULL) {
+        
+        bmp_draw("/pic/sd.bmp", 56, 96, 1);
+        bmp_draw("/pic/nand.bmp", 56 + 240, 96, 0);
+        bmp_draw("/pic/1.bmp", 56, 320 + 96, 0);
+        bmp_draw("/pic/2.bmp", 56 + 240, 320 + 96, 0);
+        
         if (fd < 0 && (fd = open("/dev/input/event0", O_RDWR)) < 0) {
             write_file("/dev/tty0", "failed to open touchscreen\n");
             break;
@@ -437,7 +452,7 @@ int main()
         ((mount_fs("ext4", bootdev, "/real-root") >= 0) ||
          (mount_fs("ext3", bootdev, "/real-root") >= 0) ||
          (mount_fs("btrfs", bootdev, "/real-root") >= 0))) {
-        run_rootfs_init(1, bootdev, bootdir);
+        run_rootfs_init(update_kernel, bootdev, bootdir);
         return 0;
     }
     // Boot from NAND if chosen or SD mount failed
